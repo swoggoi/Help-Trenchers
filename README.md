@@ -79,3 +79,7 @@ The application supports configurable filters, including:
 ## Disclaimer
 
 This project is intended for research, monitoring, and educational purposes only. It does not provide financial advice. Cryptocurrency trading involves substantial risk, and users are responsible for their own decisions.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
