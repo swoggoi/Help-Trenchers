@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"os"
 
 	"github.com/joho/godotenv"
@@ -13,8 +14,18 @@ type Config struct {
 
 func Load() (*Config, error) {
 	_ = godotenv.Load()
+	_ = godotenv.Load(".env.local")
+
 	token := os.Getenv("BOT_TOKEN")
+	if token == "" {
+		return nil, errors.New("BOT_TOKEN is required")
+	}
+
 	dburl := os.Getenv("DB_URL")
+	if dburl == "" {
+		return nil, errors.New("DB_URL is required")
+	}
+
 	return &Config{
 		BotToken: token,
 		DBURL:    dburl,

@@ -1,19 +1,42 @@
-version: "3.8"
-
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:17.1-alpine
     container_name: bot_postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: botuser
-      POSTGRES_PASSWORD: botpass
-      POSTGRES_DB: botdb
+      POSTGRES_USER: ${POSTGRES_USER:-botuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-botpass}
+      POSTGRES_DB: ${POSTGRES_DB:-botdb}
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data/pgdata
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-botuser} -d ${POSTGRES_DB:-botdb}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - botnet
+
+  bot:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    container_name: bot_app
+    restart: unless-stopped
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      DB_URL: postgres://${POSTGRES_USER:-botuser}:${POSTGRES_PASSWORD:-botpass}@postgres:5432/${POSTGRES_DB:-botdb}?sslmode=${DB_SSLMODE:-require}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - botnet
 
 volumes:
   pgdata:
+
+networks:
+  botnet:

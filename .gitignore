@@ -1,0 +1,27 @@
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+bin/
+dist/
+tmp/
+
+# Go
+go.sum
+
+# Docker
+pgdata/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
