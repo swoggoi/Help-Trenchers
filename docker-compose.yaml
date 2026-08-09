@@ -28,6 +28,7 @@ services:
     restart: unless-stopped
     environment:
       BOT_TOKEN: ${BOT_TOKEN}
+      SOL_WALLET: ${SOL_WALLET}
       DB_URL: postgres://${POSTGRES_USER:-botuser}:${POSTGRES_PASSWORD:-botpass}@postgres:5432/${POSTGRES_DB:-botdb}?sslmode=${DB_SSLMODE:-require}
     depends_on:
       postgres:
