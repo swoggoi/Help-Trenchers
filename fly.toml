@@ -1,0 +1,35 @@
+# fly.toml — Help Trenchers bot
+# Деплой: fly launch (первый раз) или fly deploy (далее).
+# Build context — корень репозитория; Dockerfile лежит в bot/.
+
+app = "help-trenchers"
+primary_region = "ams"
+
+[build]
+  dockerfile = "bot/Dockerfile"
+
+[env]
+  # Публичные настройки (не секреты)
+  API_ADDR = ":8080"
+  API_PORT = "8080"
+  LOG_LEVEL = "production"
+  TZ = "UTC"
+  # NOWPAYMENTS_IPN_URL заполняется после деплоя (см. инструкцию):
+  # https://<app>.fly.dev/api/nowpayments/callback
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"   # бот не должен засыпать, чтобы ловить IPN и опрос
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.concurrency]]
+    type = "connections"
+    soft_limit = 50
+    hard_limit = 100
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256

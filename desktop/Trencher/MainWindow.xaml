@@ -1,0 +1,49 @@
+<Window x:Class="Trencher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Trencher"
+        xmlns:models="clr-namespace:Trencher.Models"
+        Title="Trencher — Dev Sniper" Height="600" Width="1000">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Лицензия -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="8">
+            <TextBlock Text="Лицензия:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="KeyBox" Width="320" Text=""/>
+            <Button x:Name="VerifyBtn" Content="Проверить" Click="VerifyBtn_Click" Margin="6,0"/>
+            <TextBlock x:Name="LicenseStatus" VerticalAlignment="Center" Margin="6,0" Text="не проверено"/>
+        </StackPanel>
+
+        <!-- Панель -->
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="8">
+            <TextBox x:Name="ServerBox" Width="160" Text="127.0.0.1:9090"/>
+            <Button x:Name="ConnectBtn" Content="Подключиться" Click="ConnectBtn_Click" Margin="6,0"/>
+            <Button x:Name="BanBtn" Content="Забанить дева" Click="BanBtn_Click" Margin="6,0"/>
+            <Button x:Name="TrustBtn" Content="Труст дева" Click="TrustBtn_Click" Margin="6,0"/>
+            <CheckBox x:Name="OpenBrowserChk" Content="Открывать в браузере" IsChecked="True" VerticalAlignment="Center" Margin="6,0"/>
+            <CheckBox x:Name="SoundChk" Content="Звук" IsChecked="True" VerticalAlignment="Center" Margin="6,0"/>
+            <TextBlock x:Name="StatusText" VerticalAlignment="Center" Margin="6,0" Text="offline"/>
+        </StackPanel>
+
+        <!-- Таблица монет -->
+        <DataGrid Grid.Row="2" x:Name="Grid" AutoGenerateColumns="False" IsReadOnly="True"
+                  ItemsSource="{Binding Coins}" Margin="8" SelectionMode="Single">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Symbol" Binding="{Binding Symbol}" Width="100"/>
+                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160"/>
+                <DataGridTextColumn Header="Dev" Binding="{Binding Creator}" Width="200"/>
+                <DataGridTextColumn Header="DevKind" Binding="{Binding DevKind}" Width="80"/>
+                <DataGridTextColumn Header="DevBuy(SOL)" Binding="{Binding DevBuySol}" Width="100"/>
+                <DataGridTextColumn Header="AutoOpen" Binding="{Binding AutoOpen}" Width="80"/>
+                <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="80"/>
+                <DataGridHyperlinkColumn Header="Axiom" Binding="{Binding AxiomUrl}" Width="160"/>
+                <DataGridHyperlinkColumn Header="Pump" Binding="{Binding PumpUrl}" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</Window>

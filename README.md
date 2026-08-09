@@ -82,36 +82,49 @@ This project is intended for research, monitoring, and educational purposes only
 
 # Help Trenchers - Telegram Bot
 
-Бот продажи доступа к софту по подписке. Оплата: ⭐ Telegram Stars или 🪙 Solana (SOL).
+Бот продажи доступа к софту по подписке.
+
+## Способы оплаты
+
+- ⭐ **Telegram Stars** — нативный инвойс, ключ выдаётся по `SuccessfulPayment`.
+- 🪙 **Крипта через NOWPayments** — любая монета (BTC/ETH/USDT/USDC/SOL/TON/TRX/LTC).
+  Бот создаёт инвойс, юзер платит, а выдача ключа идёт по двум каналам:
+  polling статуса инвойса (каждые 30с) и IPN webhook (`/api/nowpayments/callback`).
+- 🪙 **Прямой Solana (SOL)** — резервный режим, работает если задан `SOL_WALLET`
+  (уникальный адрес на заказ + авто-вывод на основной кошелёк).
 
 ## Возможности
 
 - Меню: ℹ️ Информация / 💳 Подписка / 👤 Профиль
-- Тарифы: 7 / 14 / 31 дней (2 / 4 / 8 SOL или 14000 / 28000 / 36000 ⭐)
-- Уникальный Solana-адрес на каждый заказ; бот сам проверяет поступление и выдаёт ключ
-- Авто-вывод полученных SOL на основной кошелёк (`SOL_WALLET`)
-- Профиль показывает активный ключ и сколько дней осталось
+- Тарифы: 7 / 14 / 31 дней
+- Уникальный ключ на каждую оплату; профиль показывает активный ключ и остаток
+- HTTP API для десктоп-клиента: `GET /api/verify?key=...` → валидность ключа
 
 ## Локальный запуск
 
 ```bash
-cp .env.example .env       
+cp .env.example .env
 docker compose up -d postgres
+# накати схему + миграции
+psql "$DB_URL" -f bot/db/schema.sql
+psql "$DB_URL" -f bot/db/migrations/0002_nowpayments.sql
 go run ./bot/cmd
 ```
 
-БД (PostgreSQL) должна быть доступна по `DB_URL`. Схема в `bot/db/schema.sql`
-применяется вручную: `psql -f bot/db/schema.sql`.
-
 ## Переменные окружения
 
-| Переменная     | Назначение                                      |
-|----------------|-------------------------------------------------|
-| `BOT_TOKEN`    | Токен Telegram-бота от @BotFather               |
-| `DB_URL`       | Строка подключения к PostgreSQL                  |
-| `SOL_WALLET`   | Твой основной Solana-кошелёк (куда выводятся SOL) |
-| `SOL_RPC_URL`  | (опц.) RPC Solana, по умолчанию mainnet-beta    |
-| `LOG_LEVEL`    | `development` для подробных логов               |
+| Переменная              | Назначение                                              |
+|-------------------------|---------------------------------------------------------|
+| `BOT_TOKEN`             | Токен Telegram-бота от @BotFather                       |
+| `DB_URL`                | Строка подключения к PostgreSQL                         |
+| `SOL_WALLET`            | (опц.) основной Solana-кошелёк для прямой SOL-оплаты    |
+| `SOL_RPC_URL`           | (опц.) RPC Solana, по умолчанию mainnet-beta            |
+| `NOWPAYMENTS_API_KEY`   | API-ключ NOWPayments                                    |
+| `NOWPAYMENTS_IPN_SECRET`| Секрет для проверки подписи webhook                     |
+| `NOWPAYMENTS_IPN_URL`   | URL колбэка, напр. `https://domain/api/nowpayments/callback` |
+| `API_ADDR`              | Адрес HTTP API, напр. `:8080`                           |
+| `API_KEY`               | (опц.) защита `/api/verify` при необходимости           |
+| `LOG_LEVEL`             | `development` для подробных логов                       |
 
 ## Деплой (GitHub Actions → VPS)
 

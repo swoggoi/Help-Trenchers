@@ -24,9 +24,8 @@ func (s *PostgresStorage) Close() {
 	s.pool.Close()
 }
 
-
 func (s *PostgresStorage) GetOrCreateUser(ctx context.Context, user *User) (*User, error) {
-	
+
 	var exists bool
 	err := s.pool.QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)`,
@@ -37,7 +36,7 @@ func (s *PostgresStorage) GetOrCreateUser(ctx context.Context, user *User) (*Use
 	}
 
 	if exists {
-		
+
 		var u User
 		err := s.pool.QueryRow(ctx,
 			`SELECT id, COALESCE(username,''), COALESCE(first_name,''), COALESCE(last_name,''), state, pending_days
@@ -50,7 +49,6 @@ func (s *PostgresStorage) GetOrCreateUser(ctx context.Context, user *User) (*Use
 		return &u, nil
 	}
 
-	
 	_, err = s.pool.Exec(ctx,
 		`INSERT INTO users (id, username, first_name, last_name, state, pending_days, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())`,
@@ -78,7 +76,7 @@ func (s *PostgresStorage) GetState(ctx context.Context, userID int64) (UserState
 		userID,
 	).Scan(&state)
 	if err != nil {
-		return StateIdle, nil 
+		return StateIdle, nil
 	}
 	return UserState(state), nil
 }
@@ -159,17 +157,17 @@ func (s *PostgresStorage) GetUserActiveKey(ctx context.Context, userID int64) (*
 
 func (s *PostgresStorage) CreateOrder(ctx context.Context, order *Order) error {
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO orders (user_id, plan_days, deposit_address, deposit_privkey, expected_lamports, status, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, 'pending', NOW(), NOW())
+		`INSERT INTO orders (user_id, plan_days, deposit_address, deposit_privkey, expected_lamports, np_invoice_id, status, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending', NOW(), NOW())
          RETURNING id, created_at, updated_at`,
-		order.UserID, order.PlanDays, order.DepositAddress, order.DepositPrivKey, order.ExpectedLamports,
+		order.UserID, order.PlanDays, order.DepositAddress, order.DepositPrivKey, order.ExpectedLamports, order.NpInvoiceID,
 	).Scan(&order.ID, &order.CreatedAt, &order.UpdatedAt)
 	return err
 }
 
 func (s *PostgresStorage) GetPendingOrders(ctx context.Context) ([]*Order, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, user_id, plan_days, deposit_address, deposit_privkey, expected_lamports, status, signature, key_id, created_at, updated_at
+		`SELECT id, user_id, plan_days, deposit_address, deposit_privkey, expected_lamports, np_invoice_id, status, signature, key_id, created_at, updated_at
          FROM orders WHERE status = 'pending' ORDER BY created_at ASC`,
 	)
 	if err != nil {
@@ -182,7 +180,7 @@ func (s *PostgresStorage) GetPendingOrders(ctx context.Context) ([]*Order, error
 		var o Order
 		err := rows.Scan(
 			&o.ID, &o.UserID, &o.PlanDays, &o.DepositAddress, &o.DepositPrivKey,
-			&o.ExpectedLamports, &o.Status, &o.Signature, &o.KeyID, &o.CreatedAt, &o.UpdatedAt,
+			&o.ExpectedLamports, &o.NpInvoiceID, &o.Status, &o.Signature, &o.KeyID, &o.CreatedAt, &o.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -192,10 +190,50 @@ func (s *PostgresStorage) GetPendingOrders(ctx context.Context) ([]*Order, error
 	return orders, rows.Err()
 }
 
+func (s *PostgresStorage) VerifyKey(ctx context.Context, key string) (*AccessKey, error) {
+	var k AccessKey
+	var usedAt *time.Time
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, user_id, key, payment_method, duration_days, is_used, created_at, expires_at
+         FROM access_keys WHERE key = $1`,
+		key,
+	).Scan(&k.ID, &k.UserID, &k.Key, &k.PaymentMethod, &k.DurationDays,
+		&k.IsUsed, &k.CreatedAt, &k.ExpiresAt, &usedAt)
+	if err != nil {
+		return nil, err
+	}
+	k.UsedAt = usedAt
+	return &k, nil
+}
+
 func (s *PostgresStorage) MarkOrderPaid(ctx context.Context, orderID int64, signature string, keyID int64) error {
 	_, err := s.pool.Exec(ctx,
 		`UPDATE orders SET status = 'paid', signature = $2, key_id = $3, updated_at = NOW() WHERE id = $1`,
 		orderID, signature, keyID,
 	)
 	return err
+}
+
+func (s *PostgresStorage) GetPaidUnissuedOrders(ctx context.Context) ([]*Order, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, user_id, plan_days, deposit_address, deposit_privkey, expected_lamports, np_invoice_id, status, signature, key_id, created_at, updated_at
+         FROM orders WHERE status = 'paid' AND (key_id IS NULL OR key_id = 0) ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orders []*Order
+	for rows.Next() {
+		var o Order
+		err := rows.Scan(
+			&o.ID, &o.UserID, &o.PlanDays, &o.DepositAddress, &o.DepositPrivKey,
+			&o.ExpectedLamports, &o.NpInvoiceID, &o.Status, &o.Signature, &o.KeyID, &o.CreatedAt, &o.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, &o)
+	}
+	return orders, rows.Err()
 }

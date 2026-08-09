@@ -35,17 +35,18 @@ type AccessKey struct {
 }
 
 type Order struct {
-	ID              int64
-	UserID          int64
-	PlanDays        int
-	DepositAddress  string
-	DepositPrivKey  string
+	ID               int64
+	UserID           int64
+	PlanDays         int
+	DepositAddress   string
+	DepositPrivKey   string
 	ExpectedLamports int64
-	Status          string
-	Signature       string
-	KeyID           int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	NpInvoiceID      string
+	Status           string
+	Signature        string
+	KeyID            int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type Storage interface {
@@ -61,5 +62,8 @@ type Storage interface {
 
 	CreateOrder(ctx context.Context, order *Order) error
 	GetPendingOrders(ctx context.Context) ([]*Order, error)
+	GetPaidUnissuedOrders(ctx context.Context) ([]*Order, error)
 	MarkOrderPaid(ctx context.Context, orderID int64, signature string, keyID int64) error
+
+	VerifyKey(ctx context.Context, key string) (*AccessKey, error)
 }

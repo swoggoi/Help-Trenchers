@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"mybot/bot/bot"
+	"mybot/bot/internal/api"
 	"mybot/bot/internal/config"
 	"mybot/bot/internal/logger"
 	"mybot/bot/internal/payments"
@@ -44,15 +45,36 @@ func main() {
 			log.Printf("Предупреждение: Solana-клиент не создан (%v). Крипто-оплата не будет работать.", err)
 		}
 	} else {
-		log.Println("SOL_WALLET не задан — крипто-оплата отключена")
+		log.Println("SOL_WALLET не задан — прямая крипто-оплата отключена")
 	}
 
-	b, err := bot.New(cfg.BotToken, logg, db, sol)
+	var np *payments.NowPaymentsClient
+	if apiKey := os.Getenv("NOWPAYMENTS_API_KEY"); apiKey != "" {
+		np = payments.NewNowPaymentsClient(apiKey, os.Getenv("NOWPAYMENTS_IPN_SECRET"))
+		log.Println("NOWPayments подключён")
+	} else {
+		log.Println("NOWPAYMENTS_API_KEY не задан — оплата через NOWPayments отключена")
+	}
+
+	b, err := bot.New(cfg.BotToken, logg, db, sol, np)
 	if err != nil {
 		log.Fatalf("Ошибка создания бота: %v", err)
 	}
 
-	
+	if apiAddr := os.Getenv("API_ADDR"); apiAddr != "" {
+		apiKey := os.Getenv("API_KEY")
+		apiSrv := api.New(db, apiAddr, apiKey, np)
+		go func() {
+			logg.Infof("API запущен на %s", apiAddr)
+			if err := apiSrv.Start(); err != nil && err.Error() != "http: Server closed" {
+				log.Printf("API сервер остановлен: %v", err)
+			}
+		}()
+		defer apiSrv.Shutdown(context.Background())
+	} else {
+		log.Println("API_ADDR не задан — HTTP API отключён")
+	}
+
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 

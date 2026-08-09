@@ -16,7 +16,7 @@ type Bot struct {
 	handlers *Handlers
 }
 
-func New(token string, log *logger.Logger, storage storage.Storage, sol *payments.SolanaClient) (*Bot, error) {
+func New(token string, log *logger.Logger, storage storage.Storage, sol *payments.SolanaClient, np *payments.NowPaymentsClient) (*Bot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func New(token string, log *logger.Logger, storage storage.Storage, sol *payment
 		api:      api,
 		log:      log,
 		storage:  storage,
-		handlers: NewHandlers(api, storage, sol),
+		handlers: NewHandlers(api, storage, sol, np, log),
 	}, nil
 }
 
@@ -40,8 +40,10 @@ func (b *Bot) Start(ctx context.Context) {
 
 	b.log.Infof("Бот запущен: %s", b.api.Self.UserName)
 
-	// запуск watcher крипто-платежей
+	// запуск watcher крипто-платежей (прямой SOL)
 	go b.handlers.WatchPayments(ctx)
+	// запуск watcher NowPayments (крипта через NP)
+	go b.handlers.WatchNPPayments(ctx)
 
 	for update := range updates {
 		b.handlers.HandleMessage(ctx, update)

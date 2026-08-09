@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS orders (
     deposit_address TEXT NOT NULL,
     deposit_privkey TEXT NOT NULL,
     expected_lamports BIGINT NOT NULL,
+    np_invoice_id TEXT,
     status TEXT NOT NULL DEFAULT 'pending',
     signature TEXT,
     key_id BIGINT REFERENCES access_keys(id) ON DELETE SET NULL,

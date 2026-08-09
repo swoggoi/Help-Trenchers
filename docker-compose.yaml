@@ -33,9 +33,17 @@ services:
       BOT_TOKEN: ${BOT_TOKEN}
       SOL_WALLET: ${SOL_WALLET}
       DB_URL: postgres://${POSTGRES_USER:-botuser}:${POSTGRES_PASSWORD:-botpass}@postgres:5432/${POSTGRES_DB:-botdb}?sslmode=${DB_SSLMODE:-require}
+      API_ADDR: ${API_ADDR:-:8080}
+      API_KEY: ${API_KEY:-}
+      NOWPAYMENTS_API_KEY: ${NOWPAYMENTS_API_KEY:-}
+      NOWPAYMENTS_IPN_SECRET: ${NOWPAYMENTS_IPN_SECRET:-}
+      NOWPAYMENTS_IPN_URL: ${NOWPAYMENTS_IPN_URL:-}
     depends_on:
       postgres:
         condition: service_healthy
+    # Проброс API для десктопа и NowPayments IPN.
+    ports:
+      - "${API_PORT:-8080}:8080"
     networks:
       - botnet
 
