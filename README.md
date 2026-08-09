@@ -13,7 +13,7 @@
 ## Локальный запуск
 
 ```bash
-cp .env.example .env        # заполни BOT_TOKEN, DB_URL, SOL_WALLET
+cp .env.example .env       
 docker compose up -d postgres
 go run ./bot/cmd
 ```
@@ -38,6 +38,8 @@ go run ./bot/cmd
    - `SSH_HOST`, `SSH_USER`, `SSH_PRIVATE_KEY`, `SSH_PORT`
    - `BOT_TOKEN`, `SOL_WALLET`, `DB_URL` (используются на сервере)
 3. На сервере создай `/opt/help-trenchers`, положи туда `docker-compose.yaml` и `.env`.
+   В `.env` можно задать `BOT_IMAGE=ghcr.io/<user>/<repo>:<tag>`, тогда сервер
+   будет тянуть готовый образ из GHCR вместо локальной сборки.
 4. Пуш в `main` задеплоит бот через SSH (`docker compose up -d`).
 
 ## Безопасность

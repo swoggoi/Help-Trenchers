@@ -23,6 +23,7 @@ services:
       - botnet
 
   bot:
+    image: ${BOT_IMAGE:-help-trenchers:local}
     build:
       context: .
       dockerfile: bot/Dockerfile
