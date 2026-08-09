@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 )
@@ -14,6 +15,8 @@ type Config struct {
 
 func Load() (*Config, error) {
 	_ = godotenv.Load()
+	_ = godotenv.Load(filepath.Join("..", ".env"))
+	_ = godotenv.Load(filepath.Join("..", "..", ".env"))
 	_ = godotenv.Load(".env.local")
 
 	token := os.Getenv("BOT_TOKEN")
