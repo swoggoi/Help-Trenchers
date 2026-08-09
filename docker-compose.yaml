@@ -8,8 +8,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-botpass}
       POSTGRES_DB: ${POSTGRES_DB:-botdb}
       PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    # НЕ пробрасываем порт наружу в проде — БД доступна только внутри сети botnet.
+    # Для локальной отладки раскомментируй:
+    # ports:
+    #   - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data/pgdata
     healthcheck:

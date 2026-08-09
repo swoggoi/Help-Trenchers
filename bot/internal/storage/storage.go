@@ -34,6 +34,20 @@ type AccessKey struct {
 	UsedAt        *time.Time
 }
 
+type Order struct {
+	ID              int64
+	UserID          int64
+	PlanDays        int
+	DepositAddress  string
+	DepositPrivKey  string
+	ExpectedLamports int64
+	Status          string
+	Signature       string
+	KeyID           int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type Storage interface {
 	GetOrCreateUser(ctx context.Context, user *User) (*User, error)
 	SetState(ctx context.Context, userID int64, state UserState) error
@@ -44,4 +58,8 @@ type Storage interface {
 	CreateKey(ctx context.Context, key *AccessKey) error
 	GetUserKeys(ctx context.Context, userID int64) ([]*AccessKey, error)
 	GetUserActiveKey(ctx context.Context, userID int64) (*AccessKey, error)
+
+	CreateOrder(ctx context.Context, order *Order) error
+	GetPendingOrders(ctx context.Context) ([]*Order, error)
+	MarkOrderPaid(ctx context.Context, orderID int64, signature string, keyID int64) error
 }

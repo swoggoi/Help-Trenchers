@@ -4,22 +4,24 @@ import (
 	"context"
 	"fmt"
 	"mybot/bot/internal/keys"
+	"mybot/bot/internal/payments"
 	"mybot/bot/internal/storage"
-	"os"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type Handlers struct {
-	bot     *tgbotapi.BotAPI
-	storage storage.Storage
+	bot      *tgbotapi.BotAPI
+	storage  storage.Storage
+	solana   *payments.SolanaClient
 }
 
-func NewHandlers(bot *tgbotapi.BotAPI, storage storage.Storage) *Handlers {
+func NewHandlers(bot *tgbotapi.BotAPI, storage storage.Storage, sol *payments.SolanaClient) *Handlers {
 	return &Handlers{
 		bot:     bot,
 		storage: storage,
+		solana:  sol,
 	}
 }
 
@@ -30,9 +32,9 @@ type Plan struct {
 }
 
 var Plans = []Plan{
-	{Days: 7, PriceSOL: "2.0", PriceStars: 200},
-	{Days: 14, PriceSOL: "4.0", PriceStars: 400},
-	{Days: 31, PriceSOL: "8.0", PriceStars: 800},
+	{Days: 7, PriceSOL: "2.0", PriceStars: 14000},
+	{Days: 14, PriceSOL: "4.0", PriceStars: 28000},
+	{Days: 31, PriceSOL: "8.0", PriceStars: 36000},
 }
 
 func planByDays(days int) (Plan, bool) {
@@ -79,6 +81,58 @@ func (h *Handlers) HandleMessage(ctx context.Context, update tgbotapi.Update) {
 		h.handleCallback(ctx, update)
 	}
 }
+func (h *Handlers) WatchPayments(ctx context.Context) {
+	if h.solana == nil {
+		return
+	}
+	ticker := time.NewTicker(20 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			orders, err := h.storage.GetPendingOrders(ctx)
+			if err != nil {
+				continue
+			}
+			for _, o := range orders {
+				if time.Since(o.CreatedAt) > 24*time.Hour {
+					continue // expired order, skip (no auto-cancel for now)
+				}
+				sig, err := h.solana.Watch(ctx, o.DepositAddress, o.ExpectedLamports)
+				if err != nil || sig == "" {
+					continue
+				}
+				if _, ok := planByDays(o.PlanDays); !ok {
+					continue
+				}
+				key := keys.Generate()
+				ak := &storage.AccessKey{
+					UserID:        o.UserID,
+					Key:           key,
+					PaymentMethod: "crypto",
+					DurationDays:  o.PlanDays,
+					IsUsed:        false,
+					CreatedAt:     time.Now(),
+					ExpiresAt:     time.Now().AddDate(0, 0, o.PlanDays),
+				}
+				if err := h.storage.CreateKey(ctx, ak); err != nil {
+					continue
+				}
+				_ = h.storage.MarkOrderPaid(ctx, o.ID, sig, ak.ID)
+				// sweep funds to main wallet
+				_, _ = h.solana.Sweep(ctx, o.DepositPrivKey)
+
+				msg := tgbotapi.NewMessage(o.UserID,
+					fmt.Sprintf("✅ Оплата подтверждена!\nТвой ключ:\n```%s```\nСрок: %d дней", key, o.PlanDays))
+				msg.ParseMode = "Markdown"
+				_, _ = h.bot.Send(msg)
+			}
+		}
+	}
+}
 
 func (h *Handlers) sendMainMenu(ctx context.Context, chatID int64) {
 	msg := tgbotapi.NewMessage(chatID, "Главное меню Help Trenchers:")
@@ -106,6 +160,8 @@ func (h *Handlers) handleCallback(ctx context.Context, update tgbotapi.Update) {
 	data := update.CallbackQuery.Data
 
 	_, _ = h.bot.Request(tgbotapi.NewCallback(update.CallbackQuery.ID, ""))
+
+	fmt.Printf("DEBUG callback data: %q from %d\n", data, fromID)
 
 	switch data {
 	case "info":
@@ -175,7 +231,7 @@ func (h *Handlers) handleCallback(ctx context.Context, update tgbotapi.Update) {
 			"",
 			"XTR",
 			[]tgbotapi.LabeledPrice{
-				{Label: fmt.Sprintf("%d дней", plan.Days), Amount: plan.PriceStars * 100},
+				{Label: fmt.Sprintf("%d дней", plan.Days), Amount: plan.PriceStars},
 			},
 		)
 		_, _ = h.bot.Send(invoice)
@@ -188,19 +244,37 @@ func (h *Handlers) handleCallback(ctx context.Context, update tgbotapi.Update) {
 			h.sendMainMenu(ctx, chatID)
 			return
 		}
-		wallet := os.Getenv("SOL_WALLET")
-		if wallet == "" {
-			wallet = "YOUR_SOL_WALLET_ADDRESS"
+		addr, priv, err := payments.GenerateDeposit()
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "Ошибка генерации адреса оплаты.")
+			_, _ = h.bot.Send(msg)
+			return
 		}
-		text := fmt.Sprintf("Оплата криптой (SOL):\n\nТариф: %d дней\nСумма: %s SOL\n\n"+
-			"Кошелёк Solana:\n`%s`\n\nПосле перевода нажми «✅ Подтвердить оплату» и пришли TXID ответным сообщением.",
-			plan.Days, plan.PriceSOL, wallet)
+		lamports, err := payments.SOLToLamports(plan.PriceSOL)
+		if err != nil {
+			msg := tgbotapi.NewMessage(chatID, "Ошибка расчёта суммы.")
+			_, _ = h.bot.Send(msg)
+			return
+		}
+		order := &storage.Order{
+			UserID:           fromID,
+			PlanDays:         plan.Days,
+			DepositAddress:   addr,
+			DepositPrivKey:   priv,
+			ExpectedLamports: lamports,
+		}
+		if err := h.storage.CreateOrder(ctx, order); err != nil {
+			msg := tgbotapi.NewMessage(chatID, "Ошибка создания заказа.")
+			_, _ = h.bot.Send(msg)
+			return
+		}
+		text := fmt.Sprintf("💳 Оплата криптой (Solana)\n\nТариф: %d дней\nСумма: %s SOL\n\n"+
+			"Переведи ТОЧНУЮ сумму на уникальный адрес:\n`%s`\n\n"+
+			"Бот сам проверит поступление и выдаст ключ. Обычно это занимает до 1 минуты.",
+			plan.Days, plan.PriceSOL, addr)
 		msg := tgbotapi.NewMessage(chatID, text)
 		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(
-			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData("✅ Подтвердить оплату", "confirm_crypto"),
-			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("❌ Отмена", "cancel"),
 			),
@@ -208,11 +282,9 @@ func (h *Handlers) handleCallback(ctx context.Context, update tgbotapi.Update) {
 		_, _ = h.bot.Send(msg)
 
 	case "confirm_crypto":
-		plan := h.getSelectedPlan(ctx, fromID)
-		if plan == nil {
-			plan = &Plans[0]
-		}
-		h.issueKey(ctx, chatID, fromID, plan, "crypto")
+		msg := tgbotapi.NewMessage(chatID, "Для крипты подтверждение не нужно — бот сам проверит поступление на адрес.")
+		_, _ = h.bot.Send(msg)
+		h.sendMainMenu(ctx, chatID)
 
 	case "cancel":
 		_ = h.storage.SetState(ctx, fromID, storage.StateIdle)

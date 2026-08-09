@@ -6,6 +6,7 @@ import (
 	"mybot/bot/bot"
 	"mybot/bot/internal/config"
 	"mybot/bot/internal/logger"
+	"mybot/bot/internal/payments"
 	"mybot/bot/internal/storage"
 	"os"
 	"os/signal"
@@ -32,12 +33,26 @@ func main() {
 	}
 	defer db.Close()
 
-	b, err := bot.New(cfg.BotToken, logg, db)
+	var sol *payments.SolanaClient
+	if wallet := os.Getenv("SOL_WALLET"); wallet != "" {
+		rpcURL := os.Getenv("SOL_RPC_URL")
+		if rpcURL == "" {
+			rpcURL = payments.DefaultRPCURL
+		}
+		sol, err = payments.NewSolanaClient(rpcURL, wallet)
+		if err != nil {
+			log.Printf("Предупреждение: Solana-клиент не создан (%v). Крипто-оплата не будет работать.", err)
+		}
+	} else {
+		log.Println("SOL_WALLET не задан — крипто-оплата отключена")
+	}
+
+	b, err := bot.New(cfg.BotToken, logg, db, sol)
 	if err != nil {
 		log.Fatalf("Ошибка создания бота: %v", err)
 	}
 
-	// graceful shutdown
+	
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 

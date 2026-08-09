@@ -21,13 +21,16 @@ CREATE TABLE IF NOT EXISTS access_keys (
     used_at TIMESTAMPTZ
 );
 
-CREATE TABLE IF NOT EXISTS payments (
+CREATE TABLE IF NOT EXISTS orders (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    access_key_id BIGINT REFERENCES access_keys(id) ON DELETE SET NULL,
-    method TEXT NOT NULL,
-    amount NUMERIC,
-    currency TEXT,
-    status TEXT NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    plan_days INTEGER NOT NULL,
+    deposit_address TEXT NOT NULL,
+    deposit_privkey TEXT NOT NULL,
+    expected_lamports BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    signature TEXT,
+    key_id BIGINT REFERENCES access_keys(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
